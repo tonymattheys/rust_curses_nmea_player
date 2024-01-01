@@ -1,120 +1,149 @@
-use chrono::prelude::*;
-use gtk::prelude::*;
-use serde::Deserialize;
-use socket2::{Domain, Socket, Type};
+use clap::Parser;
+use pancurses::{echo, endwin, initscr, Input::Character, A_REVERSE};
+use pnet::datalink::{self, NetworkInterface};
 use std::fs::File;
 use std::io::{self, BufRead};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::sync::{Arc, Mutex};
-use std::thread;
-use tokio::runtime;
-use tokio::time::Duration;
+use std::net::{SocketAddr, UdpSocket};
+use std::path::PathBuf;
+use std::process::exit;
+use std::thread::sleep;
+use std::time::Duration;
 
-#[derive(Debug, Deserialize)]
-struct GpsData {
-    #[serde(rename = "GGA")]
-    gga: Option<GgaData>,
-    #[serde(rename = "RMC")]
-    rmc: Option<RmcData>,
+#[derive(Parser)]
+#[command(author, version)] // Read from `Cargo.toml`
+#[command(
+    about = "A Rust program to read a text file containing NMEA sentences and resend them across the network."
+)]
+#[command(
+    long_about = "This program will read a file specified by the user and perform various operations
+using the contents of the file as input. The most common way to use this program is
+to read in a NMEA0183 file and resend the NMEA sentences out onto the network using
+UDP broadcast on port 10110. This will appear to be a Comar system to Navionics and
+other navigation systems that listend for UDP broadcasts on the network.
+\n
+The program can also scan the given file and produce a report showing summary information
+about the NMEA sentences contained therein. For example, it will report on time stamps
+found in sentences like $GPZDA, which will, in turn allow the user to ask the program to
+start broadcasting over the network starting at a certain time in the file. This is very 
+useful when analyzing sailboat races, for example, where there could be a lot of unwanted 
+NMEA traffic before and after the race itself."
+)]
+struct Cli {
+    #[arg(short, long, value_name = "hh:mm:ss.ss")]
+    start_time: Option<String>,
+
+    #[arg(short, long, default_value_t = 10110, value_name = "UDP_PORT")]
+    udp_port: u16,
+
+    #[arg(short, long, value_name = "en0, eth0 ... etc")]
+    if_name: String,
+
+    #[arg(short, long, value_name = "NMEA_FILE")]
+    file_name: PathBuf,
 }
 
-#[derive(Debug, Deserialize)]
-struct GgaData {
-    #[serde(rename = "Time")]
-    time: String,
-    #[serde(rename = "Latitude")]
-    latitude: String,
-    #[serde(rename = "Longitude")]
-    longitude: String,
+fn window_cleanup(win: pancurses::Window) -> bool {
+    win.refresh();
+    win.clear();
+    endwin();
+    true
 }
 
-#[derive(Debug, Deserialize)]
-struct RmcData {
-    #[serde(rename = "Time")]
-    time: String,
+fn main() -> io::Result<()> {
+    // Parse command-line arguments to get the network interface name and file name
+    let cli = Cli::parse();
+
+    let mut _start_time: String = "99:99:99".to_string();
+    if let Some(st) = cli.start_time {
+        _start_time = st;
+    };
+
+    let if_name = cli.if_name;
+
+    // Open the file
+    let file = File::open(cli.file_name)?;
+
+    // Get the network interface with the name that was specified as the first parameter
+    let interface = datalink::interfaces()
+        .into_iter()
+        .find(|iface| iface.name == if_name)
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                "Interface '".to_owned() + &if_name + "' not found",
+            )
+        })?;
+    // Read the file line by line and send each line over UDP to the specified interface
+    send_lines(file, interface, cli.udp_port, _start_time)?;
+
+    Ok(())
 }
 
-fn main() {
-    // Set up GTK
-    gtk::init().expect("Failed to initialize GTK.");
+fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_time: String,) -> io::Result<()> {
+    if let Some(ips) = interface.ips.into_iter().next() {
+        let destination = SocketAddr::new(ips.broadcast(), udp_port);
+        // Open a UDP socket for the interface
+        let socket = UdpSocket::bind("0.0.0.0:0")?;
+        socket.set_broadcast(true)?;
 
-    // Set up the main window
-    let window = gtk::Window::new(gtk::WindowType::Toplevel);
-    window.set_title("GPS Tracker");
-    window.set_default_size(800, 600);
+        // Initialize curses
+        let window = initscr();
+        window.clear();
 
-    // Set up the web view for displaying the map
-    let web_view = gtk::WebView::new();
-    window.add(&web_view);
-
-    // Create a shared state for GPS data
-    let gps_data = Arc::new(Mutex::new(None));
-
-    // Set up UDP socket
-    let socket = Socket::new(Domain::ipv4(), Type::dgram(), None).unwrap();
-    let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 10110);
-    socket.bind(&addr.into()).unwrap();
-
-    // Create a file chooser dialog
-    let file_chooser = gtk::FileChooserDialog::new(
-        Some("Select NMEA File"),
-        Some(&window),
-        gtk::FileChooserAction::Open,
-    );
-    file_chooser.add_button("Open", gtk::ResponseType::Ok.into());
-    file_chooser.add_button("Cancel", gtk::ResponseType::Cancel.into());
-
-    // Handle file chooser dialog response
-    let gps_data_clone = Arc::clone(&gps_data);
-    let web_view_clone = web_view.clone();
-    file_chooser.connect_response(move |dialog, response| {
-        if response == gtk::ResponseType::Ok.into() {
-            if let Some(file) = dialog.get_file() {
-                if let Some(file_path) = file.get_path() {
-                    start_gps_tracking(file_path, gps_data_clone.clone(), web_view_clone.clone());
+        // Read the file line by line and send each line over UDP with a one-second delay
+        let reader = io::BufReader::new(file.try_clone()?);
+        for line in reader.lines() {
+            let line = line?;
+            socket.send_to(line.as_bytes(), &destination)?;
+            if line.contains("GPZDA") {
+                let mut lcl_time: i32 = 0;
+                let fields: Vec<&str> = line.split(',').collect();
+                match fields[1][0..2].parse::<i32>() {
+                    Ok(parsed_num) => {
+                        lcl_time = parsed_num - 8;
+                        if lcl_time < 0 {
+                            lcl_time = 24 - lcl_time;
+                        }
+                    }
+                    Err(_) => {
+                        println!("Failed to parse the string as an integer");
+                    }
                 }
+                window.mv(2, 2);
+                window.clrtoeol();
+                window.attron(A_REVERSE);
+                window.addstr("Time");
+                window.attroff(A_REVERSE);
+                window.mv(2, 7);
+                window.addstr(" (");
+                window.addstr(lcl_time.to_string());
+                window.addstr(") ");
+                window.addstr(fields[1][0..2].to_string());
+                window.addstr(":");
+                window.addstr(fields[1][2..4].to_string());
+                window.addstr(":");
+                window.addstr(fields[1][4..].to_string());
+                window.mv(0, 0);
+                window.nodelay(true);
+                echo(); // set terminal echo mode on
+
+                let char = window.getch();
+                match char {
+                    Some(x) => {
+                        if x == Character('q') {
+                            window_cleanup(window);
+                            exit(0);
+                        }
+                    }
+                    None => {}
+                }
+                window.refresh();
             }
+            // Wait before reading the next line
+            sleep(Duration::from_millis(5));
         }
-        dialog.close();
-    });
-
-    // Show the file chooser dialog when the window is first displayed
-    window.connect_show(move |_| {
-        file_chooser.run();
-    });
-
-    // Set up the GTK main loop
-    window.connect_delete_event(move |_, _| {
-        gtk::main_quit();
-        Inhibit(false)
-    });
-
-    // Show all components and start the GTK main loop
-    window.show_all();
-    gtk::main();
-}
-
-fn start_gps_tracking(file_path: std::path::PathBuf, gps_data: Arc<Mutex<Option<GpsData>>>, web_view: gtk::WebView) {
-    // Your existing GPS tracking logic goes here, but use `file_path` to read from the selected file.
-    // This function can be modified to suit your needs.
-    // For simplicity, I'm omitting the actual file reading and processing logic.
-    // You can replace the following line with your logic for reading NMEA sentences from the file.
-
-    // Dummy function to read from the file (replace with actual logic)
-    read_from_file(file_path);
-
-    // Update the GUI with GPS data every second
-    gtk::timeout_add_seconds_local(1, move || {
-        let gps_data = gps_data.lock().unwrap().clone();
-        if let Some(gps_data) = gps_data {
-            update_gui(&web_view, &gps_data);
-        }
-        Continue(true)
-    });
-}
-
-fn read_from_file(file_path: std::path::PathBuf) {
-    // Replace this with your actual logic to read NMEA sentences from the file.
-    // For simplicity, I'm using a dummy function that prints the file path.
-    println!("Reading from file: {:?}", file_path);
+	    window_cleanup(window);
+    }
+    println!("File lines echoed on interface '{}' UDP port {} with one-second delay.", interface.name, udp_port);
+    Ok(())
 }
