@@ -88,6 +88,7 @@ fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_tim
 	
 	let mut file_start_time = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap();
 	let mut locl_start_time = Utc::now().naive_utc();
+	let mut sleep_time = locl_start_time - locl_start_time ;
 	
     let mut dt: NaiveDateTime = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap();
 	let mut lat: String = "".to_string();
@@ -113,6 +114,11 @@ fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_tim
             	file_start_time = dt;
             	locl_start_time = Utc::now().naive_utc();
             }
+	        // Resynch the clocks by sleeping before reading the next line
+    	    sleep_time = (dt - file_start_time) - (Utc::now().naive_utc() - locl_start_time);
+        	if sleep_time.num_milliseconds() > 0 {
+	        	sleep(std::time::Duration::from_millis(sleep_time.num_milliseconds() as u64));
+        	}
 		}
 		// $GPGGA,020659.21,4937.8509,N,12401.4384,W,2,9,0.83,,M,,M*44
 		if fields[0].starts_with("$") && fields[0][3..6].eq("GGA") {
@@ -142,11 +148,6 @@ fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_tim
 			let o: f64 = FromStr::from_str(&fields[2]).unwrap_or(0.0) ;
 			dpt = format!("{:.1} m", d+o);
 		}
-        // Resynch the clocks by sleeping before reading the next line
-        let sleep_time = (dt - file_start_time) - (Utc::now().naive_utc() - locl_start_time);
-        if sleep_time.num_milliseconds() > 0 {
-	        sleep(std::time::Duration::from_millis(sleep_time.num_milliseconds() as u64));
-        }
 		screen::paint(&window, dt, sleep_time, &lat, &lon, &cog, &sog, &dpt);
         socket.send_to(line.as_bytes(), &destination)?;
     }

@@ -30,7 +30,7 @@ pub fn paint(window: &Window, dt: NaiveDateTime, sleep: Duration, lat: &str, lon
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(format!("{}", &Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S")));
-    window.addstr(" UTC     (Offset = ");
+    window.addstr(" UTC  (Delta = ");
     window.addstr(sleep.num_milliseconds().to_string());
     window.addstr(" ms )");
     // Latitude
