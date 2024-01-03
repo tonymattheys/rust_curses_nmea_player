@@ -1,14 +1,17 @@
 use chrono::{NaiveDate, NaiveDateTime};
 use clap::Parser;
-use pancurses::{echo, endwin, initscr, Input::Character, A_REVERSE};
 use pnet::datalink::{self, NetworkInterface};
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::net::{SocketAddr, UdpSocket};
 use std::path::PathBuf;
-use std::process::exit;
 use std::str::FromStr;
 use std::thread::sleep;
+
+// This declaration will look for a file named `screen.rs` and will
+// insert its contents inside a module named `screen` under this scope
+mod screen;
+
 
 #[derive(Parser)]
 #[command(author, version)] // Read from `Cargo.toml`
@@ -41,13 +44,6 @@ struct Cli {
 
     #[arg(short, long, value_name = "NMEA_FILE")]
     file_name: PathBuf,
-}
-
-fn window_cleanup(win: pancurses::Window) -> bool {
-    win.refresh();
-    win.clear();
-    endwin();
-    true
 }
 
 fn main() -> io::Result<()> {
@@ -88,20 +84,23 @@ fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_tim
         socket.set_broadcast(true)?;
 
         // Initialize curses
-        let window = initscr();
+        let window: pancurses::Window = screen::new();
         window.clear();
 
         // Read the file line by line and send each line over UDP with a one-second delay
         let reader = io::BufReader::new(file.try_clone()?);
         let mut dt: NaiveDateTime = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap();
-		let mut lat: String = "".to_owned();
-		let mut lon: String = "".to_owned();
+		let mut lat: String = "".to_string();
+		let mut lon: String = "".to_string();
+		let mut cog: String = "".to_string();
+		let mut sog: String = "".to_string();
+		let mut dpt: String = "".to_string();
 
         for line in reader.lines() {
             let line = line?;
             let fields: Vec<&str> = line.split(',').collect();
-            // Example: $GPZDA,234626.99,22,02,2021,08,00*6A
-			if fields[0].contains("GPZDA") {
+            // $GPZDA,234626.99,22,02,2021,08,00*6A
+			if fields[0].starts_with("$") && fields[0][3..6].eq("ZDA") {
 				let y: i32  = FromStr::from_str(fields[4]).unwrap_or(1970);
 				let m: u32  = FromStr::from_str(fields[3]).unwrap_or(1);
 				let d: u32  = FromStr::from_str(fields[2]).unwrap_or(1);
@@ -111,66 +110,41 @@ fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_tim
 	            dt = NaiveDate::from_ymd_opt(y, m, d).unwrap().and_hms_opt(hr, mn, se).unwrap();
 			}
 			// $GPGGA,020659.21,4937.8509,N,12401.4384,W,2,9,0.83,,M,,M*44
-			
-			if fields[0].contains("GPGGA") {
+			if fields[0].starts_with("$") && fields[0][3..6].eq("GGA") {
 				// Get latitude from GPS statement
 				let x: f64 = FromStr::from_str(&fields[2]).unwrap_or(0.0) ;
 				let lat_deg: f64 = (x / 100.0).floor();
 				let lat_min: f64 = (x / 100.0).fract() * 100.0 ;
 				let n_s: &str  = fields[3];
-				lat = format!("{:.0}°{:.4}{}", lat_deg, lat_min, n_s);
+				lat = format!("{:.0}°{:.4} {}", lat_deg, lat_min, n_s);
 				// Get longitude from GPS statements
 				let x: f64 = FromStr::from_str(&fields[4]).unwrap_or(0.0) ;
 				let lon_deg: f64 = (x / 100.0).floor();
 				let lon_min: f64 = (x / 100.0).fract() * 100.0 ;
 				let e_w: &str  = fields[5];
-				lon = format!("{:.0}°{:.4}{}", lon_deg, lon_min, e_w);
+				lon = format!("{:.0}°{:.4} {}", lon_deg, lon_min, e_w);
 			}
-
+			// $IIVTG,359.5,T,,M,0.1,N,0.1,K,D*15
+			if fields[0].starts_with("$") && fields[0][3..6].eq("VTG") {
+				let c: f64 = FromStr::from_str(&fields[1]).unwrap_or(0.0) ;
+				cog = format!("{:.1} °T", c);
+				let s: f64 = FromStr::from_str(&fields[5]).unwrap_or(0.0) ;
+				sog = format!("{:.1} kts", s);
+			}
+			// $SDDPT,10.38,0,*6F
+			if fields[0].starts_with("$") && fields[0][3..6].eq("DPT") {
+				let d: f64 = FromStr::from_str(&fields[1]).unwrap_or(0.0) ;
+				let o: f64 = FromStr::from_str(&fields[2]).unwrap_or(0.0) ;
+				dpt = format!("{:.1} m", d+o);
+			}
+			
+			screen::paint(&window, dt, &lat, &lon, &cog, &sog, &dpt);
+			
             socket.send_to(line.as_bytes(), &destination)?;
-			// Date and Time
-            window.mv(2, 2);
-            window.clrtoeol();
-            window.attron(A_REVERSE);
-            window.addstr("Time");
-            window.attroff(A_REVERSE);
-            window.mv(2, 7);
-            window.addstr(dt.to_string());
-			// Latitude
-            window.mv(4, 2);
-            window.clrtoeol();
-            window.attron(A_REVERSE);
-            window.addstr("Latitude");
-            window.attroff(A_REVERSE);
-            window.mv(4, 11);
-            window.addstr(lat.to_string());
-			// Longitude
-            window.mv(4, 25);
-            window.attron(A_REVERSE);
-            window.addstr("Longitude");
-            window.attroff(A_REVERSE);
-            window.mv(4, 35);
-            window.addstr(lon.to_string());
-			// Cursor back to home position
-            window.mv(0, 0);
-            window.nodelay(true);
-            echo(); // set terminal echo mode on
-
-            let char = window.getch();
-            match char {
-                Some(x) => {
-                    if x == Character('q') {
-                        window_cleanup(window);
-                        exit(0);
-                    }
-                }
-                None => {}
-            }
-            window.refresh();
             // Wait before reading the next line
             sleep(std::time::Duration::from_millis(5));
         }
-        window_cleanup(window);
+        screen::window_cleanup(&window);
     }
     println!(
         "File lines echoed on interface '{}' UDP port {} with one-second delay.",
