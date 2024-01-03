@@ -1,3 +1,4 @@
+use chrono::{NaiveDate, NaiveDateTime};
 use clap::Parser;
 use pancurses::{echo, endwin, initscr, Input::Character, A_REVERSE};
 use pnet::datalink::{self, NetworkInterface};
@@ -6,8 +7,8 @@ use std::io::{self, BufRead};
 use std::net::{SocketAddr, UdpSocket};
 use std::path::PathBuf;
 use std::process::exit;
+use std::str::FromStr;
 use std::thread::sleep;
-use std::time::Duration;
 
 #[derive(Parser)]
 #[command(author, version)] // Read from `Cargo.toml`
@@ -29,7 +30,7 @@ useful when analyzing sailboat races, for example, where there could be a lot of
 NMEA traffic before and after the race itself."
 )]
 struct Cli {
-    #[arg(short, long, value_name = "hh:mm:ss.ss")]
+    #[arg(short, long, value_name = "hh:mm:ss[.ss]")]
     start_time: Option<String>,
 
     #[arg(short, long, default_value_t = 10110, value_name = "UDP_PORT")]
@@ -75,7 +76,6 @@ fn main() -> io::Result<()> {
         })?;
     // Read the file line by line and send each line over UDP to the specified interface
     send_lines(file, interface, cli.udp_port, _start_time)?;
-
     Ok(())
 }
 
@@ -84,6 +84,7 @@ fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_tim
         let destination = SocketAddr::new(ips.broadcast(), udp_port);
         // Open a UDP socket for the interface
         let socket = UdpSocket::bind("0.0.0.0:0")?;
+        // allow broadcasting on this socket...
         socket.set_broadcast(true)?;
 
         // Initialize curses
@@ -92,58 +93,88 @@ fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_tim
 
         // Read the file line by line and send each line over UDP with a one-second delay
         let reader = io::BufReader::new(file.try_clone()?);
+        let mut dt: NaiveDateTime = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap();
+		let mut lat: String = "".to_owned();
+		let mut lon: String = "".to_owned();
+
         for line in reader.lines() {
             let line = line?;
-            socket.send_to(line.as_bytes(), &destination)?;
-            if line.contains("GPZDA") {
-                let mut lcl_time: i32 = 0;
-                let fields: Vec<&str> = line.split(',').collect();
-                match fields[1][0..2].parse::<i32>() {
-                    Ok(parsed_num) => {
-                        lcl_time = parsed_num - 8;
-                        if lcl_time < 0 {
-                            lcl_time = 24 - lcl_time;
-                        }
-                    }
-                    Err(_) => {
-                        println!("Failed to parse the string as an integer");
-                    }
-                }
-                window.mv(2, 2);
-                window.clrtoeol();
-                window.attron(A_REVERSE);
-                window.addstr("Time");
-                window.attroff(A_REVERSE);
-                window.mv(2, 7);
-                window.addstr(" (");
-                window.addstr(lcl_time.to_string());
-                window.addstr(") ");
-                window.addstr(fields[1][0..2].to_string());
-                window.addstr(":");
-                window.addstr(fields[1][2..4].to_string());
-                window.addstr(":");
-                window.addstr(fields[1][4..].to_string());
-                window.mv(0, 0);
-                window.nodelay(true);
-                echo(); // set terminal echo mode on
+            let fields: Vec<&str> = line.split(',').collect();
+            // Example: $GPZDA,234626.99,22,02,2021,08,00*6A
+			if fields[0].contains("GPZDA") {
+				let y: i32  = FromStr::from_str(fields[4]).unwrap_or(1970);
+				let m: u32  = FromStr::from_str(fields[3]).unwrap_or(1);
+				let d: u32  = FromStr::from_str(fields[2]).unwrap_or(1);
+				let hr: u32 = FromStr::from_str(&fields[1][0..2]).unwrap_or(0);
+				let mn: u32 = FromStr::from_str(&fields[1][2..4]).unwrap_or(0);
+				let se: u32 = FromStr::from_str(&fields[1][4..6]).unwrap_or(0);
+	            dt = NaiveDate::from_ymd_opt(y, m, d).unwrap().and_hms_opt(hr, mn, se).unwrap();
+			}
+			// $GPGGA,020659.21,4937.8509,N,12401.4384,W,2,9,0.83,,M,,M*44
+			
+			if fields[0].contains("GPGGA") {
+				// Get latitude from GPS statement
+				let x: f64 = FromStr::from_str(&fields[2]).unwrap_or(0.0) ;
+				let lat_deg: f64 = (x / 100.0).floor();
+				let lat_min: f64 = (x / 100.0).fract() * 100.0 ;
+				let n_s: &str  = fields[3];
+				lat = format!("{:.0}°{:.4}{}", lat_deg, lat_min, n_s);
+				// Get longitude from GPS statements
+				let x: f64 = FromStr::from_str(&fields[4]).unwrap_or(0.0) ;
+				let lon_deg: f64 = (x / 100.0).floor();
+				let lon_min: f64 = (x / 100.0).fract() * 100.0 ;
+				let e_w: &str  = fields[5];
+				lon = format!("{:.0}°{:.4}{}", lon_deg, lon_min, e_w);
+			}
 
-                let char = window.getch();
-                match char {
-                    Some(x) => {
-                        if x == Character('q') {
-                            window_cleanup(window);
-                            exit(0);
-                        }
+            socket.send_to(line.as_bytes(), &destination)?;
+			// Date and Time
+            window.mv(2, 2);
+            window.clrtoeol();
+            window.attron(A_REVERSE);
+            window.addstr("Time");
+            window.attroff(A_REVERSE);
+            window.mv(2, 7);
+            window.addstr(dt.to_string());
+			// Latitude
+            window.mv(4, 2);
+            window.clrtoeol();
+            window.attron(A_REVERSE);
+            window.addstr("Latitude");
+            window.attroff(A_REVERSE);
+            window.mv(4, 11);
+            window.addstr(lat.to_string());
+			// Longitude
+            window.mv(4, 25);
+            window.attron(A_REVERSE);
+            window.addstr("Longitude");
+            window.attroff(A_REVERSE);
+            window.mv(4, 35);
+            window.addstr(lon.to_string());
+			// Cursor back to home position
+            window.mv(0, 0);
+            window.nodelay(true);
+            echo(); // set terminal echo mode on
+
+            let char = window.getch();
+            match char {
+                Some(x) => {
+                    if x == Character('q') {
+                        window_cleanup(window);
+                        exit(0);
                     }
-                    None => {}
                 }
-                window.refresh();
+                None => {}
             }
+            window.refresh();
             // Wait before reading the next line
-            sleep(Duration::from_millis(5));
+            sleep(std::time::Duration::from_millis(5));
         }
-	    window_cleanup(window);
+        window_cleanup(window);
     }
-    println!("File lines echoed on interface '{}' UDP port {} with one-second delay.", interface.name, udp_port);
+    println!(
+        "File lines echoed on interface '{}' UDP port {} with one-second delay.",
+        interface.name, udp_port
+    );
     Ok(())
 }
