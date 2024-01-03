@@ -1,4 +1,4 @@
-use chrono::{Utc, NaiveDateTime};
+use chrono::{Utc, NaiveDateTime, Duration};
 use pancurses::{noecho, initscr, endwin, Input::Character, Window, A_REVERSE};
 use std::process::exit;
 
@@ -14,7 +14,7 @@ pub fn window_cleanup(win: &Window) -> bool {
     true
 }
 
-pub fn paint(window: &Window, dt: NaiveDateTime, lat: &str, lon: &str, cog: &str, sog: &str, dpt: &str) -> bool {
+pub fn paint(window: &Window, dt: NaiveDateTime, sleep: Duration, lat: &str, lon: &str, cog: &str, sog: &str, dpt: &str) -> bool {
     // Date and Time
     window.mv(0, 0);
     window.clrtoeol();
@@ -30,8 +30,9 @@ pub fn paint(window: &Window, dt: NaiveDateTime, lat: &str, lon: &str, cog: &str
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(format!("{}", &Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S")));
-    window.addstr(" UTC");
-    
+    window.addstr(" UTC     (Offset = ");
+    window.addstr(sleep.num_milliseconds().to_string());
+    window.addstr(" ms )");
     // Latitude
     window.mv(2, 0);
     window.clrtoeol();
