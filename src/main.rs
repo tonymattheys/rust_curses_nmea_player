@@ -49,12 +49,7 @@ struct Cli {
 fn main() -> io::Result<()> {
     // Parse command-line arguments to get the network interface name and file name
     let cli = Cli::parse();
-
-    let mut _start_time: String = "99:99:99".to_string();
-    if let Some(st) = cli.start_time {
-        _start_time = st;
-    };
-
+    let mut _start_time: String = cli.start_time.unwrap_or("99:99:99".to_string());
     let if_name = cli.if_name;
 
     // Open the file

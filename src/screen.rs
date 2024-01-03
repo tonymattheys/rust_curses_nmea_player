@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{Utc, NaiveDateTime};
 use pancurses::{noecho, initscr, endwin, Input::Character, Window, A_REVERSE};
 use std::process::exit;
 
@@ -19,45 +19,53 @@ pub fn paint(window: &Window, dt: NaiveDateTime, lat: &str, lon: &str, cog: &str
     window.mv(0, 0);
     window.clrtoeol();
     window.attron(A_REVERSE);
-    window.addstr("Time");
+    window.addstr("Time :");
     window.attroff(A_REVERSE);
-    window.mv(0, 5);
+    window.addstr(" ");
     window.addstr(dt.to_string());
     window.addstr(" UTC");
+    window.mv(0, 40);
+    window.attron(A_REVERSE);
+    window.addstr("Local Time :");
+    window.attroff(A_REVERSE);
+    window.addstr(" ");
+    window.addstr(format!("{}", &Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S")));
+    window.addstr(" UTC");
+    
     // Latitude
     window.mv(2, 0);
     window.clrtoeol();
     window.attron(A_REVERSE);
     window.addstr("Latitude");
     window.attroff(A_REVERSE);
-    window.mv(2, 9);
+    window.addstr(" ");
     window.addstr(lat.to_string());
     // Longitude
-    window.mv(2, 23);
+    window.mv(2, 40);
     window.attron(A_REVERSE);
     window.addstr("Longitude");
     window.attroff(A_REVERSE);
-    window.mv(2, 33);
+    window.addstr(" ");
     window.addstr(lon.to_string());
     // COG and SOG
     window.mv(4, 0);
     window.attron(A_REVERSE);
     window.addstr("COG:");
     window.attroff(A_REVERSE);
-    window.mv(4, 9);
+    window.addstr(" ");
     window.addstr(cog.to_string());
-    window.mv(4, 23);
+    window.mv(4, 40);
     window.attron(A_REVERSE);
     window.addstr("SOG:");
     window.attroff(A_REVERSE);
-    window.mv(4, 33);
+    window.addstr(" ");
     window.addstr(sog.to_string());
     // Depth
     window.mv(6, 0);
     window.attron(A_REVERSE);
     window.addstr("Depth :");
     window.attroff(A_REVERSE);
-    window.mv(6, 9);
+    window.addstr(" ");
     window.addstr(dpt.to_string());
     // Cursor back to home position
     window.mv(0, 0);
