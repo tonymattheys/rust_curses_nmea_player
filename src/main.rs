@@ -101,7 +101,7 @@ fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_tim
         let line = line?;
         let fields: Vec<&str> = line.split(',').collect();
         // $GPZDA,234626.99,22,02,2021,08,00*6A
-		if fields[0].starts_with("$") && fields[0][3..6].eq("ZDA") {
+		if fields[0].starts_with("$") && fields[0].len() >= 6 && fields[0][3..6].eq("ZDA") {
 			let y: i32  = FromStr::from_str(fields[4]).unwrap_or(1970);
 			let m: u32  = FromStr::from_str(fields[3]).unwrap_or(1);
 			let d: u32  = FromStr::from_str(fields[2]).unwrap_or(1);
@@ -121,7 +121,7 @@ fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_tim
         	}
 		}
 		// $GPGGA,020659.21,4937.8509,N,12401.4384,W,2,9,0.83,,M,,M*44
-		if fields[0].starts_with("$") && fields[0][3..6].eq("GGA") {
+		if fields[0].starts_with("$") && fields[0].len() >= 6 && fields[0][3..6].eq("GGA") {
 			// Get latitude from GPS statement
 			let x: f64 = FromStr::from_str(&fields[2]).unwrap_or(0.0) ;
 			let lat_deg: f64 = (x / 100.0).floor();
@@ -136,17 +136,17 @@ fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_tim
 			lon = format!("{:.0}°{:.4} {}", lon_deg, lon_min, e_w);
 		}
 		// $IIVTG,359.5,T,,M,0.1,N,0.1,K,D*15
-		if fields[0].starts_with("$") && fields[0][3..6].eq("VTG") {
+		if fields[0].starts_with("$") && fields[0].len() >= 6 && fields[0][3..6].eq("VTG") {
 			let c: f64 = FromStr::from_str(&fields[1]).unwrap_or(0.0) ;
 			cog = format!("{:.1} °T", c);
 			let s: f64 = FromStr::from_str(&fields[5]).unwrap_or(0.0) ;
 			sog = format!("{:.1} kts", s);
 		}
 		// $SDDPT,10.38,0,*6F
-		if fields[0].starts_with("$") && fields[0][3..6].eq("DPT") {
+		if fields[0].starts_with("$") && fields[0].len() >= 6 && fields[0][3..6].eq("DPT") {
 			let d: f64 = FromStr::from_str(&fields[1]).unwrap_or(0.0) ;
 			let o: f64 = FromStr::from_str(&fields[2]).unwrap_or(0.0) ;
-			dpt = format!("{:.1} m", d+o);
+			dpt = format!("{:.1} m", d + o);
 		}
 		screen::paint(&window, dt, sleep_time, &lat, &lon, &cog, &sog, &dpt);
         socket.send_to(line.as_bytes(), &destination)?;
