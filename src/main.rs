@@ -127,28 +127,36 @@ fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_tim
 			let lat_deg: f64 = (x / 100.0).floor();
 			let lat_min: f64 = (x / 100.0).fract() * 100.0 ;
 			let n_s: &str  = fields[3];
-			lat = format!("{:.0}°{:.4} {}", lat_deg, lat_min, n_s);
+			lat = format!("{:3.0}°{:2.4} {}", lat_deg, lat_min, n_s);
 			// Get longitude from GPS statements
 			let x: f64 = FromStr::from_str(&fields[4]).unwrap_or(0.0) ;
 			let lon_deg: f64 = (x / 100.0).floor();
 			let lon_min: f64 = (x / 100.0).fract() * 100.0 ;
 			let e_w: &str  = fields[5];
-			lon = format!("{:.0}°{:.4} {}", lon_deg, lon_min, e_w);
+			lon = format!("{:3.0}°{:2.4} {}", lon_deg, lon_min, e_w);
 		}
 		// $IIVTG,359.5,T,,M,0.1,N,0.1,K,D*15
 		if fields[0].starts_with("$") && fields[0].len() >= 6 && fields[0][3..6].eq("VTG") {
 			let c: f64 = FromStr::from_str(&fields[1]).unwrap_or(0.0) ;
-			cog = format!("{:.1} °T", c);
+			cog = format!("{:3.0} °T", c);
 			let s: f64 = FromStr::from_str(&fields[5]).unwrap_or(0.0) ;
-			sog = format!("{:.1} kts", s);
+			sog = format!("{:2.1} kts", s);
 		}
 		// $SDDPT,10.38,0,*6F
 		if fields[0].starts_with("$") && fields[0].len() >= 6 && fields[0][3..6].eq("DPT") {
 			let d: f64 = FromStr::from_str(&fields[1]).unwrap_or(0.0) ;
 			let o: f64 = FromStr::from_str(&fields[2]).unwrap_or(0.0) ;
-			dpt = format!("{:.1} m", d + o);
+			dpt = format!("{:3.1} m", d + o);
 		}
-		screen::paint(&window, dt, sleep_time, &lat, &lon, &cog, &sog, &dpt);
+        // inject a short delay to account for sending the line at 4800 baud
+        // 4800 baud is 600 bytes/sec so delay (in msec) is line.len()/600*1000
+        let mut dly: f64 = line.len() as f64 / 600.0 * 1000.0;
+       	if sleep_time.num_milliseconds() <= 0 {
+	    	dly = 0.0;
+	    }
+        let msg = format!("Delay in milliseconds = {:4}", dly.floor() as u64);
+       	sleep(std::time::Duration::from_millis(dly.floor() as u64));
+		screen::paint(&window, file_start_time, locl_start_time, dt, sleep_time, &lat, &lon, &cog, &sog, &dpt, &msg);
         socket.send_to(line.as_bytes(), &destination)?;
     }
     screen::window_cleanup(&window);

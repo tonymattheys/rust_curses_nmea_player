@@ -14,27 +14,43 @@ pub fn window_cleanup(win: &Window) -> bool {
     true
 }
 
-pub fn paint(window: &Window, dt: NaiveDateTime, sleep: Duration, lat: &str, lon: &str, cog: &str, sog: &str, dpt: &str) -> bool {
-    // Date and Time
+pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveDateTime, sleep: Duration, lat: &str, lon: &str, cog: &str, sog: &str, dpt: &str, msg: &str) -> bool {
+    // Start Date and Time for file and local clock
     window.mv(0, 0);
     window.clrtoeol();
     window.attron(A_REVERSE);
-    window.addstr("Time :");
+    window.addstr("File Start :");
+    window.attroff(A_REVERSE);
+    window.addstr(" ");
+    window.addstr(fst.to_string());
+    window.addstr(" UTC");
+    window.mv(0, 40);
+    window.attron(A_REVERSE);
+    window.addstr("Local Start :");
+    window.attroff(A_REVERSE);
+    window.addstr(" ");
+    window.addstr(lst.to_string());
+    window.addstr(" UTC");
+    // Date and Time
+    window.mv(1, 0);
+    window.clrtoeol();
+    window.attron(A_REVERSE);
+    window.addstr("File Time :");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(dt.to_string());
     window.addstr(" UTC");
-    window.mv(0, 40);
+    window.mv(1, 40);
     window.attron(A_REVERSE);
     window.addstr("Local Time :");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(format!("{}", &Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S")));
-    window.addstr(" UTC  (Delta = ");
+    window.addstr(" UTC  (Offset = ");
     window.addstr(sleep.num_milliseconds().to_string());
     window.addstr(" ms )");
     // Latitude
-    window.mv(2, 0);
+    window.mv(3, 0);
     window.clrtoeol();
     window.attron(A_REVERSE);
     window.addstr("Latitude");
@@ -42,32 +58,40 @@ pub fn paint(window: &Window, dt: NaiveDateTime, sleep: Duration, lat: &str, lon
     window.addstr(" ");
     window.addstr(lat.to_string());
     // Longitude
-    window.mv(2, 40);
+    window.mv(3, 40);
     window.attron(A_REVERSE);
     window.addstr("Longitude");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(lon.to_string());
     // COG and SOG
-    window.mv(4, 0);
+    window.mv(5, 0);
     window.attron(A_REVERSE);
     window.addstr("COG:");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(cog.to_string());
-    window.mv(4, 40);
+    window.mv(5, 40);
     window.attron(A_REVERSE);
     window.addstr("SOG:");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(sog.to_string());
     // Depth
-    window.mv(6, 0);
+    window.mv(7, 0);
     window.attron(A_REVERSE);
     window.addstr("Depth :");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(dpt.to_string());
+    // Random message
+    window.mv(10, 0);
+    window.attron(A_REVERSE);
+    window.addstr("Message :");
+    window.attroff(A_REVERSE);
+    window.addstr(" ");
+    window.addstr(msg.to_string());
+    
     // Cursor back to home position
     window.mv(0, 0);
     window.nodelay(true);
