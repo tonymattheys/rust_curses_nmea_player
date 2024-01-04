@@ -14,7 +14,7 @@ pub fn window_cleanup(win: &Window) -> bool {
     true
 }
 
-pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveDateTime, sleep: Duration, lat: &str, lon: &str, cog: &str, sog: &str, dpt: &str, msg: &str) -> bool {
+pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveDateTime, sleep: Duration, lat: &str, lon: &str, cog: &str, sog: &str, dpt: &str, wnd: &str, msg: &str) -> bool {
     // Start Date and Time for file and local clock
     window.mv(0, 0);
     window.clrtoeol();
@@ -84,8 +84,15 @@ pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveD
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(dpt.to_string());
+    // Wind
+    window.mv(9, 0);
+    window.attron(A_REVERSE);
+    window.addstr("Wind :");
+    window.attroff(A_REVERSE);
+    window.addstr(" ");
+    window.addstr(wnd.to_string());
     // Random message
-    window.mv(10, 0);
+    window.mv(11, 0);
     window.attron(A_REVERSE);
     window.addstr("Message :");
     window.attroff(A_REVERSE);
