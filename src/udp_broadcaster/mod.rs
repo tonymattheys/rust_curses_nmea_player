@@ -1,4 +1,4 @@
-use chrono::{Utc, NaiveDate, NaiveDateTime};
+use chrono::{Utc, NaiveDate};
 use pnet::datalink::NetworkInterface;
 use std::fs::File;
 use std::io::{self, BufRead};
@@ -19,14 +19,14 @@ pub fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start
     // Initialize curses
     let window: pancurses::Window = screen::new();
     window.clear();
-    // Read the file line by line and send each line over UDP with a one-second delay
+    // Read the file line by line and send each line over UDP
     let reader = io::BufReader::new(file.try_clone()?);
 	// Define some variables that can store various dates/times that we need to keep 
 	// packet sending in synch (more or less) with real time
 	let mut file_start_time = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap();
 	let mut locl_start_time = Utc::now().naive_utc();
 	let mut sleep_time = locl_start_time - locl_start_time ;
-    let mut dt: NaiveDateTime = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap();
+    let mut dt = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap();
 	// Variables that store strings that will be displayed on the screen
 	let mut lat: String = "".to_string();
 	let mut lon: String = "".to_string();
