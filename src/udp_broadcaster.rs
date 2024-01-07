@@ -5,9 +5,8 @@ use std::io::{self, BufRead};
 use std::net::{SocketAddr, UdpSocket};
 use std::str::FromStr;
 use std::thread::sleep;
-
-mod screen;
 mod where_am_i_now;
+mod screen;
 
 pub fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_time: String,) -> io::Result<()> {
 	// Grab the broadcast address of the first IP address assigned to the specified interface
