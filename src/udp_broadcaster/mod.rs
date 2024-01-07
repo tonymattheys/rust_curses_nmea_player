@@ -7,6 +7,7 @@ use std::str::FromStr;
 use std::thread::sleep;
 
 mod screen;
+mod where_am_i_now;
 
 pub fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start_time: String,) -> io::Result<()> {
 	// Grab the broadcast address of the first IP address assigned to the specified interface
@@ -28,12 +29,15 @@ pub fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start
 	let mut sleep_time = locl_start_time - locl_start_time ;
     let mut dt = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap();
 	// Variables that store strings that will be displayed on the screen
-	let mut lat: String = "".to_string();
-	let mut lon: String = "".to_string();
+	let mut lat_d: String = "".to_string();
+	let mut lat_s: String = "".to_string();
+	let mut lon_d: String = "".to_string();
+	let mut lon_s: String = "".to_string();
 	let mut cog: String = "".to_string();
 	let mut sog: String = "".to_string();
 	let mut dpt: String = "".to_string();
 	let mut wnd: String = "".to_string();
+    let mut whr = "".to_string();
 	// Iterate through the lines of the file and process each line as we see it.
 	// For certain types of sentences we parse the line and extract some information
 	// that we need from its fields.
@@ -48,7 +52,8 @@ pub fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start
 			let hr: u32 = FromStr::from_str(&fields[1][0..2]).unwrap_or(0);
 			let mn: u32 = FromStr::from_str(&fields[1][2..4]).unwrap_or(0);
 			let se: u32 = FromStr::from_str(&fields[1][4..6]).unwrap_or(0);
-            dt = NaiveDate::from_ymd_opt(y, m, d).unwrap().and_hms_opt(hr, mn, se).unwrap();
+			// We put locl_start_time as the default for the unwrap() to help prevent panics
+            dt = NaiveDate::from_ymd_opt(y, m, d).unwrap_or(locl_start_time.date()).and_hms_opt(hr, mn, se).unwrap_or(locl_start_time);
 			// If we have not yet initialized the start times, then do it now.
             if file_start_time == NaiveDate::from_ymd_opt(1970, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap() {
             	file_start_time = dt;
@@ -67,13 +72,19 @@ pub fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start
 			let lat_deg: f64 = (x / 100.0).floor();
 			let lat_min: f64 = (x / 100.0).fract() * 100.0 ;
 			let n_s: &str  = fields[3];
-			lat = format!("{:3.0}°{:2.4} {}", lat_deg, lat_min, n_s);
+			let mut ll = lat_deg + (lat_min / 60.0);
+			if n_s.contains("S") {ll = ll * -1.0 }
+			lat_d = format!("{:3.4}", ll);
+			lat_s = format!("{:3}° {:2.4} {} ({})", lat_deg, lat_min, n_s, lat_d);
 			// Get longitude from GPS statements
 			let x: f64 = FromStr::from_str(&fields[4]).unwrap_or(0.0) ;
 			let lon_deg: f64 = (x / 100.0).floor();
 			let lon_min: f64 = (x / 100.0).fract() * 100.0 ;
 			let e_w: &str  = fields[5];
-			lon = format!("{:3.0}°{:2.4} {}", lon_deg, lon_min, e_w);
+			ll = lon_deg + (lon_min / 60.0);
+			if e_w.contains("W") {ll = ll * -1.0 }
+			lon_d = format!("{:3.4}", ll);
+			lon_s = format!("{:3}° {:2.4} {} ({})", lon_deg, lon_min, e_w, lon_d);
 		}
 		// $IIVTG,359.5,T,,M,0.1,N,0.1,K,D*15
 		if fields[0].starts_with("$") && fields[0].len() >= 6 && fields[0][3..6].eq("VTG") {
@@ -104,10 +115,13 @@ pub fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start
        	if sleep_time.num_milliseconds() <= 0 {
 	    	dly = 0.0;
 	    }
-        let msg = format!("Delay in milliseconds = {:4}", dly.floor() as u64);
+	    if ((Utc::now().naive_utc() - locl_start_time).num_seconds() % 30) <= 1 {
+	    	whr = where_am_i_now::whereami(&lat_d, &lon_d);
+	    }
+        let msg = format!("Delay = {:4} ms", dly.floor() as u64);
        	sleep(std::time::Duration::from_millis(dly.floor() as u64));
 		// Now repaint the screen and send the line on the socket.
-		screen::paint(&window, file_start_time, locl_start_time, dt, sleep_time, &lat, &lon, &cog, &sog, &dpt, &wnd, &msg);
+		screen::paint(&window, file_start_time, locl_start_time, dt, sleep_time, &lat_s, &lon_s, &cog, &sog, &dpt, &wnd, &whr, &msg);
         socket.send_to(line.as_bytes(), &destination)?;
     }
     screen::window_cleanup(&window);

@@ -14,7 +14,7 @@ pub fn window_cleanup(win: &Window) -> bool {
     true
 }
 
-pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveDateTime, sleep: Duration, lat: &str, lon: &str, cog: &str, sog: &str, dpt: &str, wnd: &str, msg: &str,) -> bool {
+pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveDateTime, sleep: Duration, lat_s: &str, lon_s: &str, cog: &str, sog: &str, dpt: &str, wnd: &str, loc: &str, msg: &str,) -> bool {
     // Start Date and Time for file and local clock
     window.mv(0, 0);
     window.clrtoeol();
@@ -56,16 +56,17 @@ pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveD
     window.addstr("Latitude");
     window.attroff(A_REVERSE);
     window.addstr(" ");
-    window.addstr(lat.to_string());
+    window.addstr(lat_s.to_string());
     // Longitude
     window.mv(3, 40);
     window.attron(A_REVERSE);
     window.addstr("Longitude");
     window.attroff(A_REVERSE);
     window.addstr(" ");
-    window.addstr(lon.to_string());
+    window.addstr(lon_s.to_string());
     // COG and SOG
     window.mv(5, 0);
+    window.clrtoeol();
     window.attron(A_REVERSE);
     window.addstr("COG:");
     window.attroff(A_REVERSE);
@@ -79,6 +80,7 @@ pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveD
     window.addstr(sog.to_string());
     // Depth
     window.mv(7, 0);
+    window.clrtoeol();
     window.attron(A_REVERSE);
     window.addstr("Depth :");
     window.attroff(A_REVERSE);
@@ -86,15 +88,24 @@ pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveD
     window.addstr(dpt.to_string());
     // Wind
     window.mv(9, 0);
+    window.clrtoeol();
     window.attron(A_REVERSE);
     window.addstr("Wind :");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(wnd.to_string());
-    // Random message
+    // Location and Random message
     window.mv(11, 0);
+    window.clrtoeol();
     window.attron(A_REVERSE);
-    window.addstr("Message :");
+    window.addstr("Location :");
+    window.attroff(A_REVERSE);
+    window.addstr(" ");
+    window.addstr(loc.to_string());
+    window.mv(12, 0);
+    window.clrtoeol();
+    window.attron(A_REVERSE);
+    window.addstr("Message  :");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(msg.to_string());
