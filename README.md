@@ -3,7 +3,9 @@
 Rust program which will play the contents of a NMEA text file over the network. The program will try to 
 use the times contained in the NMEA sentences to keep itself more or less in synch in real time with the
 NMEA times. This relies on your file having $GPZDA sentences present so if your GPS doesn't generate them
-then this will not work.
+then time synchronization will not work exactly. However, the program also introduces delays to account for
+sending NMEA sentences over a "real" NMEA bus at 38,400 baud so the times might end up being quite close
+anyway. Your mileage may vary.
 
 # How to run
 - cd wherever_you_downloaded_the_program
@@ -14,12 +16,12 @@ then this will not work.
 - cargo build --release
 will build an executable called "nmea_player" under ./target/release
 
-# Description (also available from --help option)
+# Description (also available with --help option)
 This program will read a file specified by the user and perform various operations
 using the contents of the file as input. The most common way to use this program is
-to read in a NMEA0183 file and resend the NMEA sentences out onto the network using
+to read in a NMEA0183 file and re-send the NMEA sentences out onto the network using
 UDP broadcast on port 10110. This will appear to be a Comar system to Navionics and
-other navigation systems that listend for UDP broadcasts on the network.
+other navigation systems that listen for UDP broadcasts on the network.
 
 The program can also scan the given file and produce a report showing summary information
 about the NMEA sentences contained therein. For example, it will report on time stamps
