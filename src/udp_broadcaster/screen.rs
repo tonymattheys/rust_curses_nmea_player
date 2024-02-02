@@ -46,11 +46,14 @@ pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveD
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(format!("{}", &Utc::now().naive_utc().format("%Y-%m-%d %H:%M:%S")));
-    window.addstr(" UTC  (Offset = ");
+    window.addstr(" UTC");
+    window.mv(2, 0);
+    window.clrtoeol();
+    window.addstr("Difference between real elapsed time and file elapsed time = ");
     window.addstr(sleep.num_milliseconds().to_string());
-    window.addstr(" ms )");
+    window.addstr(" ms");
     // Latitude
-    window.mv(3, 0);
+    window.mv(4, 0);
     window.clrtoeol();
     window.attron(A_REVERSE);
     window.addstr("Latitude");
@@ -58,28 +61,28 @@ pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveD
     window.addstr(" ");
     window.addstr(lat_s.to_string());
     // Longitude
-    window.mv(3, 40);
+    window.mv(4, 40);
     window.attron(A_REVERSE);
     window.addstr("Longitude");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(lon_s.to_string());
     // COG and SOG
-    window.mv(5, 0);
+    window.mv(6, 0);
     window.clrtoeol();
     window.attron(A_REVERSE);
     window.addstr("COG:");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(cog.to_string());
-    window.mv(5, 40);
+    window.mv(6, 40);
     window.attron(A_REVERSE);
     window.addstr("SOG:");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(sog.to_string());
     // Depth
-    window.mv(7, 0);
+    window.mv(8, 0);
     window.clrtoeol();
     window.attron(A_REVERSE);
     window.addstr("Depth :");
@@ -87,7 +90,7 @@ pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveD
     window.addstr(" ");
     window.addstr(dpt.to_string());
     // Wind
-    window.mv(9, 0);
+    window.mv(10, 0);
     window.clrtoeol();
     window.attron(A_REVERSE);
     window.addstr("Wind :");
@@ -95,14 +98,14 @@ pub fn paint(window: &Window, fst: NaiveDateTime, lst: NaiveDateTime, dt: NaiveD
     window.addstr(" ");
     window.addstr(wnd.to_string());
     // Location and Random message
-    window.mv(11, 0);
+    window.mv(12, 0);
     window.clrtoeol();
     window.attron(A_REVERSE);
     window.addstr("Location :");
     window.attroff(A_REVERSE);
     window.addstr(" ");
     window.addstr(loc.to_string());
-    window.mv(12, 0);
+    window.mv(13, 0);
     window.clrtoeol();
     window.attron(A_REVERSE);
     window.addstr("Message  :");

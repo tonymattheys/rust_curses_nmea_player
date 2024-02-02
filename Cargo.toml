@@ -14,3 +14,5 @@ chrono = "0.4.31"
 json = "0.12.4"
 reqwest = { version = "0.11.23", features = ["json"] }
 tokio = { version = "1.35.1", features = ["full"] }
+geoutils = "0.5.1"
+reverse_geocoder = "4.0.0"
