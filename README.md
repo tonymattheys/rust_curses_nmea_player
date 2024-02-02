@@ -1,0 +1,48 @@
+# Curses-based NMEA file player written in Rust
+
+Rust program which will play the contents of a NMEA text file over the network. The program will try to 
+use the times contained in the NMEA sentences to keep itself more or less in synch in real time with the
+NMEA times. This relies on your file having $GPZDA sentences present so if your GPS doesn't generate them
+then this will not work.
+
+How to run:
+- cd wherever_you_downloaded_the_program
+- cargo run
+
+This program will read a file specified by the user and perform various operations
+using the contents of the file as input. The most common way to use this program is
+to read in a NMEA0183 file and resend the NMEA sentences out onto the network using
+UDP broadcast on port 10110. This will appear to be a Comar system to Navionics and
+other navigation systems that listend for UDP broadcasts on the network.
+
+The program can also scan the given file and produce a report showing summary information
+about the NMEA sentences contained therein. For example, it will report on time stamps
+found in sentences like $GPZDA, which will, in turn allow the user to ask the program to
+start broadcasting over the network starting at a certain time in the file. This is very 
+useful when analyzing sailboat races, for example, where there could be a lot of unwanted 
+NMEA traffic before and after the race itself.
+
+Usage: rust_experiments [OPTIONS] --file <NMEA_FILE>
+
+Options:
+  -s, --scan
+          
+
+  -t, --time <hh:mm:ss[.ss]>
+          [default: 00:00:00]
+
+  -u, --udp <UDP_PORT>
+          [default: 10110]
+
+  -i, --if <en0, eth0 ... etc>
+          [default: eth0]
+
+  -f, --file <NMEA_FILE>
+          
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+
