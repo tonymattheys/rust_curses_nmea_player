@@ -120,12 +120,9 @@ pub fn send_lines(file: File, interface: NetworkInterface, udp_port: u16, _start
        	sleep(std::time::Duration::from_millis(dly.floor() as u64));
 		// Now repaint the screen and send the line on the socket.
 		screen::paint(&window, file_start_time, locl_start_time, dt, sleep_time, &lat_s, &lon_s, &cog, &sog, &dpt, &wnd, &whr, &msg);
-        socket.send_to(line.as_bytes(), &destination)?;
+        socket.send_to(format!("{}\r\n", line).as_bytes(), &destination)?;
     }
     screen::window_cleanup(&window);
-    println!(
-        "File lines echoed on interface '{}' UDP port {}.",
-        interface.name, udp_port
-    );
+    println!("File lines echoed on interface '{}' UDP port {}.", interface.name, udp_port);
     Ok(())
 }
